@@ -1,0 +1,268 @@
+#!/bin/sh  
+## This script was built by Stuart Haven for use in the public domain.
+## This was completed on August 4, 2020
+## This script is available for use without support and indemnifies the creator.
+
+
+echo "Please enter the user's password that has sudo to root :"
+stty -echo
+read  sudopass
+stty echo
+#echo $sudopass
+export_script=1install_zeek.exp
+user=`whoami`
+choose_script=/tmp/choose_interface.sh
+
+###### BUILD CHOOSE INTERFACE SCRIPT ######
+echo "#!/usr/bin/bash " > $choose_script
+echo " " >> $choose_script
+echo "# zero out variables " >> $choose_script
+echo "test=\"\" " >> $choose_script
+echo "nic=\"\" " >> $choose_script
+echo " " >> $choose_script
+echo "# Build options array from list of interfaces connected " >> $choose_script
+echo "# " >> $choose_script
+echo "j=\`ip a | grep \"^[1-9]\" | grep ens | awk '{print \$2}' | awk -F: '{print \$1}' | wc -l\` " >> $choose_script
+echo " " >> $choose_script
+echo "for i in \`ip a | grep \"^[1-9]\" | grep ens | awk '{print \$2}' | awk -F: '{print \$1}' \` " >> $choose_script
+echo "   do " >> $choose_script
+echo "      while [ \$j -gt 0 ] " >> $choose_script
+echo "         do " >> $choose_script
+echo "         j=\`expr \$j - 1\` " >> $choose_script
+echo "      done " >> $choose_script
+echo "         options1+=(\${i}) " >> $choose_script
+echo "done " >> $choose_script
+echo " " >> $choose_script
+
+echo " " >> $choose_script
+#echo "echo \"options1 is \${options1[@]}\" " >> $choose_script
+
+echo " " >> $choose_script
+echo "# read dummy " >> $choose_script
+echo " " >> $choose_script
+echo "ip a | grep \"^[1-9]\" | grep -v lo | awk '{print \$2 \$3}' " >> $choose_script
+echo " echo \" \" \r " >> $choose_script
+echo " echo \" \" " >> $choose_script
+echo " " >> $choose_script
+echo "select opt in \"\${options1[@]}\" \"Stop the script\" ; do " >> $choose_script
+echo "  case \$opt in " >> $choose_script
+echo "    e*) " >> $choose_script
+echo "      echo \"Network Interface \$opt selected\" " >> $choose_script
+echo "      sleep 1 " >> $choose_script
+echo "      nic=\$opt " >> $choose_script
+echo "      break " >> $choose_script
+echo "      # processing " >> $choose_script
+echo "      ;; " >> $choose_script
+echo "    \"Stop the script\") " >> $choose_script
+echo "      echo \"You chose to stop\" " >> $choose_script
+echo "      break " >> $choose_script
+echo "      ;; " >> $choose_script
+echo "    *) " >> $choose_script
+echo "      echo \"That is not an option\" " >> $choose_script
+echo "      ;; " >> $choose_script
+echo "  esac " >> $choose_script
+echo "done " >> $choose_script
+echo "echo \$nic " >> $choose_script
+echo "echo \" \" " >> $choose_script
+echo "echo \"We will now edit the file /opt/zeek/etc/node.cfg and replace eth0 with \${nic}.\" " >> $choose_script
+echo "echo \"AND perform a network interface command as listed below:  \" " >> $choose_script
+echo "echo \" \" " >> $choose_script
+echo "echo \"We will now edit the file /opt/zeek/etc/node.cfg and replace eth0 with \${nic}.\" " >> $choose_script
+echo "tput smso; echo \"sed -e '/^inter/ s/eth0/\${nic}/' -i /opt/zeek/etc/node.cfg \";tput rmso " >> $choose_script
+echo "echo \" \" " >> $choose_script
+echo "tput smso; echo 'ethtool -K \$nic rx off tx off sg off tso off gso off gro off';tput rmso " >> $choose_script
+echo "echo \"#!/usr/bin/bash\" > /tmp/1 " >> $choose_script
+echo "echo \"sed -e '/^inter/ s/eth0/\${nic}/' -i /opt/zeek/etc/node.cfg \" >> /tmp/1 " >> $choose_script
+echo "echo \"if [ \$? -eq 0 ] ; then echo \'The sed command was successful\'; else  echo \'The sed command failed\' ; fi \" >> /tmp/1 " >> $choose_script
+echo "echo \"ethtool -K \$nic rx off tx off sg off tso off gso off gro off\" >> /tmp/1 " >> $choose_script
+echo "echo \"if [ \$? -eq 0 ] ; then echo \'The ethtool command was successful\'; else  echo \'The ethtool command failed\' ; fi\" >> /tmp/1 " >> $choose_script
+echo "chmod 777 /tmp/1  " >> $choose_script
+#echo "cat /tmp/1" " >> $choose_script
+#echo "read dummy2" " >> $choose_script
+echo "echo \"  Should we continue with the edit? \" " >> $choose_script
+echo "echo \"  Enter Y or N  \" " >> $choose_script
+echo "read dummy"  >> $choose_script
+echo "  case \$dummy in " >> $choose_script
+echo "    Y|y) " >> $choose_script
+echo "      echo \"You chose to continue\" " >> $choose_script
+echo "      chmod 777 /tmp/1 " >> $choose_script
+echo "      /tmp/1  " >> $choose_script
+echo "#      sed -e '/^inter/ s/eth0/\${nic}/' -i /opt/zeek/etc/node.cfg  " >> $choose_script
+echo "#      ethtool -K \$nic rx off tx off sg off tso off gso off gro off " >> $choose_script
+echo "      ;; " >> $choose_script
+echo "    N|n) " >> $choose_script
+echo "      echo \"You chose to stop\" " >> $choose_script
+echo "      ;; " >> $choose_script
+echo "    *) " >> $choose_script
+echo "      echo \"That is not an option\" " >> $choose_script
+echo "      ;; " >> $choose_script
+echo "  esac " >> $choose_script
+echo "exit 0 " >> $choose_script
+###### END BUILD CHOOSE INTERFACE SCRIPT ######
+
+###### BUILD EXPECT SCRIPT ######
+echo "#!/usr/bin/expect " > $export_script
+echo "#exp_internal 1 " >> $export_script
+echo "set timeout 120 " >> $export_script
+echo "set username [lindex \$argv 0] " >> $export_script
+echo "set password [lindex \$argv 1] " >> $export_script
+echo "set hostname [lindex \$argv 2] " >> $export_script
+echo "set choose_script /tmp/choose_interface.sh " >> $export_script
+echo "#log_user 0 " >> $export_script
+echo " " >> $export_script
+echo "if {[llength \$argv] == 0} { " >> $export_script
+echo "  send_user \"Usage: scriptname username \'password\' hostname\" " >> $export_script
+echo "  exit 1 " >> $export_script
+echo "} " >> $export_script
+echo " " >> $export_script
+echo "send_user \"###### \$hostname #####\" " >> $export_script
+echo " " >> $export_script
+echo "spawn ssh -q -o StrictHostKeyChecking=no \$username@\$hostname " >> $export_script
+echo " " >> $export_script
+echo "expect { " >> $export_script
+echo "  timeout { send_user \"Failed to get password prompt\"; exit 1 } " >> $export_script
+echo "  eof { send_user \"SSH failure for \$hostname\"; exit 1 } " >> $export_script
+echo "  \"*assword*\" { send \"\$password\\\r \" }" >> $export_script
+echo "  \"*\\[\\#\\$]\" " >> $export_script
+echo "} " >> $export_script
+echo " " >> $export_script
+echo "expect { " >> $export_script
+echo "  \"*assword*\"   { send_user \"Incorrect password for \$username@\$hostname \";  exit 1 }" >> $export_script
+echo "  \"*\\[\\#\\$]\" " >> $export_script
+echo "} " >> $export_script
+echo " " >> $export_script
+echo "send \"date \\\r\" " >> $export_script
+echo " " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo "send \"echo Password is correct\\\r\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo " " >> $export_script
+echo "send \"echo We will now sudo to the root user to continue ;sleep 1\\\r\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo "send \"sudo su - \\\r\" " >> $export_script
+echo " " >> $export_script
+echo "expect { " >> $export_script
+echo "  \"*assword*\" { send \"\$password\\\r \" }" >> $export_script
+echo "  \"*\\[\\#\\$]\" " >> $export_script
+echo "} " >> $export_script
+echo " " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo "send \"echo We will continue the script and install needed packages ; sleep 2 \\\r\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+#echo "send \"echo apt-get install -y cmake make gcc g++ flex bison libpcap-dev libssl-dev python-dev swig zlib1g-dev \\\r\" " >> $export_script
+echo "send \"apt-get install -y cmake make gcc g++ flex bison libpcap-dev libssl-dev python-dev swig zlib1g-dev \\\r\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo " " >> $export_script
+echo "send \"echo create file /etc/apt/sources.list.d/'security:zeek.list'\\\r\" " >> $export_script
+echo "send \"echo \'deb https://download.opensuse.org/repositories/security:/zeek/xUbuntu_20.04/ /' > /etc/apt/sources.list.d/'security:zeek.list'\\\r \" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo "send \"echo wget -nv https://download.opensuse.org/repositories/security:/zeek/xUbuntu_20.04/Release.key -O Release.key\\\r\" " >> $export_script
+echo "send \"wget -nv https://download.opensuse.org/repositories/security:/zeek/xUbuntu_20.04/Release.key -O Release.key\\\r\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo " " >> $export_script
+#echo "send \"echo apt-key add - \'\\'\\\< Release.key\\\r\" " >> $export_script
+echo "send \"apt-key add - \\\< Release.key\\\r\" " >> $export_script
+echo " " >> $export_script
+echo "expect  \"OK\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo "send \"echo Update all current packages; sleep 1 \\\r\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+#echo "send \"echo apt-get update -y \\\r\" " >> $export_script
+echo "send \"apt-get update \\\r\" " >> $export_script
+echo " " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo "send \"echo Install ethtool packages; sleep 1 \\\r\" " >> $export_script 
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo "send \"apt-get install -y ethtool \\\r\" " >> $export_script 
+echo " " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo "send \"echo Install zeek packages; sleep 1 \\\r\" " >> $export_script 
+echo "send \"echo Once complete enter \`tput smso\`##\`tput rmso\` at the prompt ; sleep 2 \\\r\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo "send \"apt-get install -y zeek-lts ; echo 'Once complete enter ';tput smso;echo ' ## ';tput rmso;echo ' at the prompt' ; sleep 2   \\\r\" " >> $export_script 
+echo "interact ## return" >> $export_script
+echo " " >> $export_script
+echo "send \"echo execute apt autoremove unused packages; sleep 1 \\\r\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo "send \"apt autoremove -y \\\r\" " >> $export_script
+echo " " >> $export_script
+echo "expect  \"*:~\\[\\#\\$]\" " >> $export_script
+echo " " >> $export_script
+echo "send \"echo 'We will verify the NIC and interfaces connected now'; sleep 1 \\\r\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo "send \"ip a | grep '\\^\\[1-9\\]' \\\r\" " >> $export_script
+echo " " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo "send \"echo 'EDIT the file /opt/zeek/etc/node.cfg and change the interface name in file' \\\r\" " >> $export_script
+#### try this script
+echo "send \"\$choose_script ; echo 'Once complete enter ' ; tput smso; echo ' ## ';tput rmso; echo ' at the prompt' ; sleep 2 \\\r\" " >> $export_script
+##TPUT## send "echo 'Once complete enter ';tput smso; echo '##' ;tput rmso;echo 'at the prompt'\r"
+echo "interact ## return" >> $export_script
+echo " " >> $export_script
+echo "#expect  \"*\\[\\#\\$]\" " >> $export_script
+#echo "send \"chmod 777 /tmp/1 ; /tmp/1  \\\r\" " >> $export_script
+#echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+#echo "send \"vi /opt/zeek/etc/node.cfg ; echo 'Once complete enter ';tput smso;echo ' ## ';tput rmso;echo ' at the prompt' ; sleep 2   \\\r\" " >> $export_script
+#echo "interact ## return" >> $export_script
+#echo " " >> $export_script
+#echo "#expect  \"*\\[\\#\\$]\" " >> $export_script
+#echo "send \"echo 'Run the following command based on the interface chosen for zeek to work:' \\\r\" " >> $export_script
+#echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+#echo "send \"echo 'ethtool -K <<interface name>> rx off tx off sg off tso off gso off gro off' \\\r\" " >> $export_script
+#echo "send \"echo 'Once complete enter ## at the prompt' ; sleep 2 \\\r\" " >> $export_script
+#echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+#echo "interact ## return" >> $export_script
+echo " " >> $export_script
+echo "send \"env | grep PATH \\\r\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo " " >> $export_script
+echo "send \"echo export PATH=/opt/zeek/bin:\\$PATH >> /root/.bashrc \\\r\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo " " >> $export_script
+echo "send \"export PATH=/opt/zeek/bin:\`env | grep PATH | awk -F= \'{ print \\\$2}\'\`  \\\r\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo " " >> $export_script
+echo "send \"env | grep PATH \\\r\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo " " >> $export_script
+echo "send \"zeekctl install \\\r\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo " " >> $export_script
+echo "send \"zeekctl start \\\r\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo " " >> $export_script
+echo "send \"cd /opt/zeek/logs/current ; ls -al \\\r\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo " " >> $export_script
+echo "send \"exit \\\r\" " >> $export_script
+echo "expect  \"*\\[\\#\\$]\" " >> $export_script
+echo " " >> $export_script
+echo "send \"exit \\\r\" " >> $export_script 
+echo "send \"echo close\" " >> $export_script
+###### END BUILD EXPECT SCRIPT ######
+
+expctpath=`which expect`
+if [ -z "$expctpath" ]
+then
+   echo "`tput smso`Expect is not installed on this host. Please install expect to continue by entering your root password.`tput rmso`"
+   sleep 2
+   sudo apt-get install -y expect
+#else
+#   echo "\$expctpath is not empty"
+fi
+
+sshpath=`which sshd`
+if [ -z "$sshpath" ]
+then
+   echo "`tput smso`SSHD is not installed on this host. Please install SSHD to continue by entering your root password.`tput rmso`"
+   sleep 2
+   sudo apt-get install -y ssh
+fi
+
+
+chmod 777 $export_script $choose_script
+echo "#./${export_script} $user $sudopass localhost"
+./${export_script} $user $sudopass localhost
+#./${export_script} $user $sudopass localhost
+
+exit 0
